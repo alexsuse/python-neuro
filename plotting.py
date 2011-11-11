@@ -106,3 +106,4 @@ for hs in hists:
 		axhists.plot(xs,h)
 
 fighists.savefig(prefix+'hists.png',dpi=300)
+plt.close(fighists)
