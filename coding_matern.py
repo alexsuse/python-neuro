@@ -23,12 +23,18 @@ def getMaternSample( gamma = 1.0, eta = 1.0, order = 2, alpha = 0.1, phi = 2.0, 
 	space = np.arange(-4.0,4.0,8.0/spacesteps)
 	weight = 1.0/repetitions
 	sigmaavg = np.zeros((timewindow,order,order))
-
+	sigmaeq = np.zeros((timewindow,order,order))
+	sigmamf = np.zeros((timewindow,order,order))
+	sigmamf[-1,:,:] = 0.001*np.eye(order)
+	sigmaeq[-1,:,:] = 0.001*np.eye(order)
+	for i in range(timewindow):
+		sigmamf[i,:,:] = sigmamf[i-1,:,:] - dt*(np.dot(gam,sigmamf[i-1,:,:])+np.dot(sigmamf[i-1,:,:],gam.T)-et) - dt*abar*np.dot(np.array([sigmamf[i-1,:,0]]).T,np.array([sigmamf[i-1,:,0]]))/(alpha**2+sigmamf[i-1,0,0])
+		sigmaeq[i,:,:] = sigmaeq[i-1,:,:] - dt*(np.dot(gam,sigmaeq[i-1,:,:])+np.dot(sigmaeq[i-1,:,:],gam.T)-et)
 	for k in range(repetitions):
 		mu = np.zeros((timewindow,order))
 		stim = np.zeros((timewindow,order))
 		sigma = np.zeros((timewindow,order,order))
-		sigma[-1,:,:] = 0.001*np.eye(order)
+		sigma[-1,:,:] = sigmamf[-1,:,:]
 		sigmanew = np.zeros((order,order))
 		P = np.zeros((spacesteps,timewindow))
 		spcount = 0
@@ -54,11 +60,6 @@ def getMaternSample( gamma = 1.0, eta = 1.0, order = 2, alpha = 0.1, phi = 2.0, 
 	
 	for i in range(timewindow):
 		P[:,i] = np.exp(-(space-mu[i,0])**2/(2.0*sigma[i,0,0]))/(np.sqrt(2.0*np.pi*sigma[i,0,0]))		
-	sigmamf = np.zeros((timewindow,order,order))
-	sigmamf[-1,:,:] = 0.001*np.eye(order)
-	for i in range(timewindow):
-		sigmamf[i,:,:] = sigmamf[i-1,:,:] - dt*(np.dot(gam,sigmamf[i-1,:,:])+np.dot(sigmamf[i-1,:,:],gam.T)-et) - dt*abar*np.dot(np.array([sigmamf[i-1,:,0]]).T,np.array([sigmamf[i-1,:,0]]))/(alpha**2+sigmamf[i-1,0,0])
-
 	if plot == True:
 		plt.rc('text',usetex=True)
 		fig = plt.figure()
@@ -75,7 +76,7 @@ def getMaternSample( gamma = 1.0, eta = 1.0, order = 2, alpha = 0.1, phi = 2.0, 
 		ax2.set_xlabel('Time [s]')
 		ax2.set_ylabel(r'Space$^2$ [cm$^2$]')
 		plt.savefig('matern_coding_plot.png',dpi=300)
-	return [P,sigmaavg, sigma, sigmamf]
+	return [P,sigmaavg, sigma, sigmamf,sigmaeq]
 
 def getMaternEqVariance( gamma = 1.0, eta = 1.0, order = 2, alpha = 0.2, phi = 1.3, dtheta = 0.3, dt = 0.001, samples = 100, timewindow = 10000, spacesteps = 400, plot = False, Trelax = 1, histmax = 0.8 ):
 	zeta = 2
