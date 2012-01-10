@@ -1,0 +1,66 @@
+#!/usr/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+from videosink import VideoSink, grayscale
+from poissonneuron import PoissonCode
+from gaussianenv import GaussianEnv
+
+zeta = 2
+L = 0.8
+N = 1
+a = np.zeros(N*N)
+sigma = 0.001
+gamma = 3.33
+eta = 3.162
+dt = 0.01
+order = 1
+alpha = 0.1
+phi = 1.3
+
+time = 10.0
+dt = 0.001
+repetitions = 100
+
+e = GaussianEnv(zeta,gamma,eta,L,N,-2.0,-2.0,4.0,4.0,sigma,order)
+
+gam = e.getgamma()
+et = e.geteta()
+
+code = PoissonCode(np.arange(-4.0,4.0,0.1),alpha,phi)
+
+covars = np.zeros((repetitions,int(time/dt)))
+
+for i in range(repetitions):
+	print i
+	mu = np.zeros((order+1,))
+	sigma = np.eye(order+1)
+	sigmanew = np.eye(order+1)
+	for j in range(int(time/dt)):
+		s = e.samplestep(dt)
+		spi = code.spikes(s,dt)
+		if sum(spi)>=1:
+			lam = np.linalg.inv(sigma)
+			while sum(spi) != 1:
+				print "Too much spikes!!!"
+				spi = code.spikes(s,dt)
+			ids = np.where(spi==1)
+			thet = np.zeros_like(mu)
+			thet[0] = code.thetas[ids]
+			for ii in range(order+1):
+				for jj in range(order+1):
+					sigmanew[ii,jj] = sigma[ii,jj] - sigma[0,ii]*sigma[0,jj]/(alpha**2+sigma[ii,jj]) 
+			mu = np.dot(sigmanew,np.dot(lam,mu)+thet/alpha**2)
+			sigma = sigmanew
+		else:
+			mu = mu -dt*np.dot(gam,mu)
+			sigma = sigma -dt*(np.dot(gam,sigma)+np.dot(sigma,gam.T)-et)
+		covars[i,j] = sigma[0,0]
+
+cov = np.average(covars,axis=0)
+
+fig = plt.figure()
+ax= fig.add_subplot(1,1,1)
+ax.plot(cov)
+plt.show()

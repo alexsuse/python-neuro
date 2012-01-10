@@ -1,0 +1,105 @@
+#!/usr/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+from videosink import VideoSink, grayscale
+import poissonneuron as pn
+import gaussianenv as ge
+
+zeta = 2
+L = 0.8
+N = 1
+a = np.zeros(N*N)
+sigma = 0.001
+gamma = 10.0
+eta = 1.162
+dt = 0.01
+order = 2
+alpha = 0.05
+phi = 1.5
+dtheta = 0.1
+time = 1.0
+dt = 0.0005
+repetitions = 500
+
+e = ge.GaussianEnv(zeta,gamma,eta,L,N,-2.0,-2.0,4.0,4.0,sigma,order)
+#e2 =  GaussianEnv(zeta,gamma*0.9,eta*1.1,L,N,-2.0,-2.0,4.0,4.0,sigma,order)
+
+gam = e.getgamma()
+et = e.geteta()
+
+abar  = np.sqrt(2.0*np.pi)*alpha*phi/dtheta
+
+print 'abar is',abar,'firing probability per dt is',abar*dt
+
+code = pn.PoissonCode(np.arange(-4.0,4.0,dtheta),alpha,phi)
+overspike = 0
+covars = np.zeros((repetitions,int(time/dt)))
+
+timewindow = 1000
+spacesteps = 400
+
+mu = np.zeros((timewindow,order+1))
+stim = np.zeros((timewindow,order+1))
+sigma = np.zeros((timewindow,order+1,order+1))
+sigma[-1,:,:] = 0.001*np.eye(order+1)
+P = np.zeros((spacesteps,timewindow))
+for i in range(timewindow):
+	s = e.samplestep(dt)
+	stim[i,:] = s
+	spi = code.spikes(s,dt)
+	if sum(spi)>=1:
+		lam = np.linalg.inv(sigma[i-1,:,:])
+		while sum(spi)!=1:
+			spi = code.spikes(s,dt)
+		ids = np.where(spi==1)
+		thet = np.zeros_like(mu[i,:])
+		thet[0] = code.neurons[ids[0]].theta[0]
+		for ii in range(order+1):
+			for jj in range(order+1):
+				sigma[i,ii,jj] = sigma[i-1,ii,jj]-sigma[i-1,0,jj]*sigma[i-1,0,ii]/(alpha**2+sigma[i-1,0,0])
+		mu[i,:] = np.dot(sigma[i,:,:],np.dot(lam,mu[i-1,:])+thet/alpha**2)	
+	else:
+		mu[i,:] = mu[i-1,:] - dt*np.dot(gam,mu[i-1,:])
+		sigma[i,:,:] = sigma[i-1,:,:] - dt*(np.dot(gam,sigma[i-1,:,:])+np.dot(sigma[i-1,:,:],gam.T)-et)
+
+fig = plt.figure()
+for i in range(order+1):
+	ax = fig.add_subplot(order+1,1,i)
+	ax.plot(range(timewindow),mu[:,i],'b:',range(timewindow),stim[:,i],'r')
+	
+#
+#for i in range(repetitions):
+#	print i
+#	mu = np.zeros((order+1,))
+#	sigma = 0.001*np.eye(order+1)
+#	sigmanew = np.zeros_like(sigma)
+#	for j in range(int(time/dt)):
+#		s = e.samplestep(dt)
+#		spi = code.spikes(s,dt)
+#		if sum(spi)>=1:
+#			lam = np.linalg.inv(sigma)
+#			while sum(spi) != 1:
+#				print "Too much spikes!!!", overspike
+#				overspike+=1
+#				spi = code.spikes(s,dt)
+#			ids = np.where(spi==1)
+#			thet = np.zeros_like(mu)
+#			thet[0] = code.thetas[ids]
+#			for ii in range(order+1):
+#				for jj in range(order+1):
+#					sigmanew[ii,jj] = sigma[ii,jj] - sigma[0,ii]*sigma[0,jj]/(alpha**2+sigma[0,0]) 
+#			mu = np.dot(sigmanew,np.dot(lam,mu)+thet/alpha**2)
+#			sigma = sigmanew
+#		else:
+#			mu = mu -dt*np.dot(gam,mu)
+#			sigma = sigma -dt*(np.dot(gam,sigma)+np.dot(sigma,gam.T)-et)
+#		covars[i,j] = sigma[0,0]
+#
+#cov = np.average(covars,axis=0)
+#
+#fig = plt.figure()
+#ax= fig.add_subplot(1,1,1)
+#ax.plot(cov)
+#plt.show()
